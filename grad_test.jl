@@ -3,7 +3,8 @@ include("funs.jl")
 using Plots
 using Zygote
 using CUDA
-using Flux: gpu, cpu
+# using Flux: gpu, cpu
+# using Flux
 using Flux
 
 
@@ -55,7 +56,7 @@ function test_grads_gpu(p1_size = 10, p2_size = 15, iterations = 100, lr = 0.01)
     gif(anim, "test_grads.gif", fps = 15)
 end
 
-function test_grads_flux(p1_size = 10, p2_size = 15, iterations = 100, lr = 0.01)
+function test_grads_flux(opt = Momentum(),p1_size = 10, p2_size = 15, iterations = 100)
     p1 = randn(p1_size, 2)
     p2 = randn(p2_size, 2)
     x_min = min(min(p1[:, 1]...), min(p2[:, 1]...))
@@ -63,13 +64,15 @@ function test_grads_flux(p1_size = 10, p2_size = 15, iterations = 100, lr = 0.01
     x_max = max(max(p1[:, 1]...), max(p2[:, 1]...))
     y_max = max(max(p1[:, 2]...), max(p2[:, 2]...))
 
-    params = Params((p1, p2))
-    for _ in 1:iterations
-        grad = Flux.gradient(mm_dist2(p1, p2) |> bellcurve |> sum, params)
-        params += grad * lr
+    params = Flux.params(p1, p2)
+    anim = @animate for _ in 1:iterations
+        grad = Flux.gradient(params) do 
+            mm_dist2(p1, p2) |> bellcurve |> sum |> -
+        end
+        Flux.update!(opt, params, grad)
         render(p1, p2)
         xlims!(x_min, x_max)
         ylims!(y_min, y_max)
     end
-    # gif(anim, "test_grads.gif", fps = 15)
+    gif(anim, "test_grads.gif", fps = 15)
 end
