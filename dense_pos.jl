@@ -1,10 +1,10 @@
 using Flux
 
-struct DensePosChain{F, M <: AbstractMatrix, B}
-    positions::Vector{M},
-    weights::Vector{M},
-    biases::Vector{B},
-    activations::Vector{F}
+struct DensePosChain{F <: AbstractVector, M <: AbstractVector{AbstractMatrix}, B <: AbstractVector}
+    positions::M,
+    weights::M,
+    biases::B
+    activations::F
     # "ws" is weights, "as" is activations
     function DensePosChain(ws::Vector{M}, bias = true, as::Vector{F} = fill(identity, length(ws))) where {M <: AbstractMatrix, F}
         b = [create_bias(w, bias, size(w,1)) for w in ws]
