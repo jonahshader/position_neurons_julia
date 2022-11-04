@@ -5,9 +5,10 @@ struct DensePosChain{F <: AbstractVector, M <: AbstractVector{AbstractMatrix}, B
     weights::M,
     biases::B
     activations::F
-    # "ws" is weights, "as" is activations
-    function DensePosChain(ws::Vector{M}, bias = true, as::Vector{F} = fill(identity, length(ws))) where {M <: AbstractMatrix, F}
-        b = [create_bias(w, bias, size(w,1)) for w in ws]
-        new{F,M,typeof(b)}(ws, b, as)
-    end
+end
+
+# "ws" is weights, "as" is activations
+function DensePosChain(ws::Vector{M}, bias = true, as::Vector{F} = fill(identity, length(ws))) where {M <: AbstractMatrix, F}
+    b = [create_bias(w, bias, size(w,1)) for w in ws]
+    new{F,M,typeof(b)}(ws, b, as)
 end
