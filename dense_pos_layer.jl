@@ -21,7 +21,7 @@ function (a::DensePosLayer)(x, pos)
     return (a.weights .* mm_dist2(a.positions, pos)) * x
 end
 
-function correct_scale(a::DensePosLayer, other_pos)
-    avg_scale = sum(a.dist_scale(mm_dist2(a.positions, other_pos))) / (size(a.positions)[1] * sizes(other_pos)[1])
+function correct_scale(a::DensePosLayer, previous_pos)
+    avg_scale = sum(a.dist_scale(mm_dist2(a.positions, previous_pos))) / (size(a.positions)[1] * sizes(previous_pos)[1])
     a.weights ./= avg_scale
 end
