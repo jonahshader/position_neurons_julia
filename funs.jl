@@ -8,6 +8,6 @@ end
 
 # given distance^2, make it a bell curve
 # this is not a scaled normal distribution. the tales on this are longer
-function bellcurve(dists2::AbstractMatrix{T}; a=1, b=1) where {T <: AbstractFloat}
-    a ./ (dists2 * b .+ a)
+function bellcurve(dist2; a=1, b=1)
+    a / (dist2 * b + a)
 end
