@@ -37,10 +37,7 @@ Flux.trainable(a::DensePosLayer) = (a.positions, a.weights, a.bias)
 
 function (a::DensePosLayer)(x)
     activation = NNlib.fast_act(a.activation)
-    # println(typeof(a.positions))
-    # println(typeof(a.previous_positions))
     return activation.((a.weights .* a.dist_fun.(mm_dist2(a.positions, a.previous_positions))) * x .+ a.bias)
-    # return activation.((a.weights) * x .+ a.bias)
 end
 
 function correct_scale(pos, previous_pos, dist_fun)

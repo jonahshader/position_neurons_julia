@@ -6,6 +6,8 @@ using Flux.Data: DataLoader
 using Flux: update!
 using CUDA
 
+using Plots
+
 include("dense_pos_layer.jl")
 
 function get_data(batch_size)
@@ -20,8 +22,7 @@ function get_data_cuda(batch_size)
     DataLoader((train_x_flat, train_y), batchsize=batch_size, shuffle=true), train_x, train_y
 end
 
-function run(epochs=1)
-    dataloader, train_x, train_y = get_data(128)
+function make_model()
     input_pos = zeros(Float32, 28^2, 2)
     for y in 0:27
         for x in 0:27
@@ -29,20 +30,29 @@ function run(epochs=1)
             input_pos[1 + x + y * 28, 2] = ((y/27f0) - 0.5f0) * 2f0
         end
     end
+    l1 = DensePosLayer(input_pos, 28*14; activation = swish, std = [0.5f0, 0.5f0])
+    l2 = DensePosLayer(l1.positions, 30; activation = swish, std = [0.5f0, 0.5f0])
+    l3 = DensePosLayer(l2.positions, 28*14; activation = swish, std = [0.5f0, 0.5f0])
+    l4 = DensePosLayer(l3.positions, 28*28; activation = sigmoid_fast, std = [0.5f0, 0.5f0])
 
-    l1 = DensePosLayer(input_pos, 28*14; activation = swish)
-    l2 = DensePosLayer(l1.positions, 30; activation = swish)
-    l3 = DensePosLayer(l2.positions, 28*14; activation = swish)
-    l4 = DensePosLayer(l3.positions, 28*28; activation = sigmoid_fast)
-    l5 = Dense(5 => 10)
+    Chain(l1, l2, l3, l4)
+end
 
-    model = Chain(l1, l2, l3, l4)
+function run(epochs=1)
+    dataloader, train_x, train_y = get_data(128)
+    model = make_model()
+    train(model, dataloader, epochs=epochs), train_x, train_y
+end
+
+function run_cuda(epochs=1)
+    dataloader, train_x, train_y = get_data_cuda(128)
+    model = make_model() |> gpu
     train(model, dataloader, epochs=epochs), train_x, train_y
 end
 
 function train(model, dataloader; epochs=1, opt=Adam())
     i = 1
-    loss(x) = Flux.mse(model(x), x)
+    loss(x) = Flux.mse(model(x), x) + sum([sum(model[i].weights .^ 2) for i in 1:length(model)]) * 0.00001f0;
     ps = Flux.params(model)
     for _ in 1:epochs
         for (x, y) in dataloader
@@ -50,6 +60,11 @@ function train(model, dataloader; epochs=1, opt=Adam())
             # try
                 if i % 20 == 0
                     println(loss(x))
+                    pos_cpu = [model[1].positions, model[2].positions, model[3].positions, model[4].positions] |> cpu
+                    scatter(pos_cpu[1][:, 1], pos_cpu[1][:, 2], markersize=2)
+                    scatter!(pos_cpu[2][:, 1], pos_cpu[2][:, 2], markersize=2)
+                    scatter!(pos_cpu[3][:, 1], pos_cpu[3][:, 2], markersize=2)
+                    scatter!(pos_cpu[4][:, 1], pos_cpu[4][:, 2], markersize=2) |> display
                 end
                 grad = gradient(() -> loss(x), ps)
                 update!(opt, ps, grad)
