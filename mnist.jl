@@ -1,7 +1,7 @@
 using MLDatasets
 using Images
 
-using Flux, DiffEqFlux
+using Flux
 using Flux.Data: DataLoader
 using Flux: update!
 using CUDA
@@ -54,7 +54,7 @@ end
 function train(model, dataloader; epochs=1, opt=Adam())
     i = 1
     penalty() = sum([sum(model[i].weights .^ 2) + sum(model[i].bias .^ 2) for i in 1:length(model)]) * 0.000002f0
-    loss(x) = Flux.mse(model(x), x)# + penalty()
+    loss(x) = Flux.mse(model(x), x) + penalty()
     ps = Flux.params(model[begin:end-1], model[end].weights, model[end].bias)
     # ps = Flux.params([m.positions for m in model])
     for _ in 1:epochs
@@ -66,8 +66,8 @@ function train(model, dataloader; epochs=1, opt=Adam())
                     pos_cpu = [model[1].positions, model[2].positions, model[3].positions, model[4].positions] |> cpu
                     scatter(pos_cpu[1][:, 1], pos_cpu[1][:, 2], markersize=2)
                     scatter!(pos_cpu[2][:, 1], pos_cpu[2][:, 2], markersize=2)
-                    scatter!(pos_cpu[3][:, 1], pos_cpu[3][:, 2], markersize=2)
-                    scatter!(pos_cpu[4][:, 1], pos_cpu[4][:, 2], markersize=2) |> display
+                    scatter!(pos_cpu[3][:, 1], pos_cpu[3][:, 2], markersize=2) |> display
+                    # scatter!(pos_cpu[4][:, 1], pos_cpu[4][:, 2], markersize=2)
                 end
                 grad = gradient(() -> loss(x), ps)
                 update!(opt, ps, grad)
