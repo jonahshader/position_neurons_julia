@@ -11,8 +11,6 @@ struct DensePosLayer
 end
 
 function DensePosLayer(prev_pos::AbstractMatrix, output_size::Int; pos_dims = 2, activation = identity, dist_fun = bellcurve, mean::Union{AbstractVector, Nothing} = nothing, std::Union{AbstractVector, Nothing} = nothing)
-    weights = Flux.glorot_uniform(output_size, size(prev_pos)[1])
-    bias = zeros(Float32, output_size)
     positions = randn(Float32, output_size, pos_dims)
     if !isnothing(std)
         positions .*= std'
@@ -20,10 +18,15 @@ function DensePosLayer(prev_pos::AbstractMatrix, output_size::Int; pos_dims = 2,
     if !isnothing(mean)
         positions .+= mean'
     end
-    weights ./= Float32(correct_scale(positions, prev_pos, dist_fun))
-    
+    DensePosLayer(prev_pos, positions; activation = activation, dist_fun = dist_fun)
+end
+
+function DensePosLayer(prev_pos::AbstractMatrix, pos::AbstractMatrix; activation = identity, dist_fun = bellcurve)
+    weights = Flux.glorot_uniform(size(pos)[1], size(prev_pos)[1])
+    weights ./= Float32(correct_scale(pos, prev_pos, dist_fun))
+    bias = zeros(Float32, size(pos)[1])
     return DensePosLayer(
-        positions,
+        pos,
         prev_pos,
         weights,
         bias,

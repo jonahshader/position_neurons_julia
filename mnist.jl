@@ -24,36 +24,39 @@ end
 
 function make_model()
     input_pos = zeros(Float32, 28^2, 2)
+    range = 2
     for y in 0:27
         for x in 0:27
-            input_pos[1 + x + y * 28, 1] = ((x/27f0) - 0.5f0) * 2f0
-            input_pos[1 + x + y * 28, 2] = ((y/27f0) - 0.5f0) * 2f0
+            input_pos[1 + x + y * 28, 1] = ((x/27f0) - 0.5f0) * 2f0 * range
+            input_pos[1 + x + y * 28, 2] = ((y/27f0) - 0.5f0) * 2f0 * range
         end
     end
-    l1 = DensePosLayer(input_pos, 28*14; activation = swish, std = [0.5f0, 0.5f0])
-    l2 = DensePosLayer(l1.positions, 30; activation = swish, std = [0.5f0, 0.5f0])
-    l3 = DensePosLayer(l2.positions, 28*14; activation = swish, std = [0.5f0, 0.5f0])
-    l4 = DensePosLayer(l3.positions, 28*28; activation = sigmoid_fast, std = [0.5f0, 0.5f0])
+    l1 = DensePosLayer(input_pos, 28*4; activation = swish, std = [1f0, 1f0])
+    l2 = DensePosLayer(l1.positions, 30; activation = swish, std = [1f0, 1f0])
+    l3 = DensePosLayer(l2.positions, 28*4; activation = swish, std = [1f0, 1f0])
+    l4 = DensePosLayer(l3.positions, input_pos; activation = sigmoid_fast)
 
     Chain(l1, l2, l3, l4)
 end
 
-function run(epochs=1)
+function run(epochs=1; opt=Adam())
     dataloader, train_x, train_y = get_data(128)
     model = make_model()
-    train(model, dataloader, epochs=epochs), train_x, train_y
+    train(model, dataloader, epochs=epochs, opt=opt), train_x, train_y
 end
 
-function run_cuda(epochs=1)
+function run_cuda(epochs=1; opt=Adam())
     dataloader, train_x, train_y = get_data_cuda(128)
     model = make_model() |> gpu
-    train(model, dataloader, epochs=epochs), train_x, train_y
+    train(model, dataloader, epochs=epochs, opt=opt), train_x, train_y
 end
 
 function train(model, dataloader; epochs=1, opt=Adam())
     i = 1
-    loss(x) = Flux.mse(model(x), x) + sum([sum(model[i].weights .^ 2) for i in 1:length(model)]) * 0.00001f0;
-    ps = Flux.params(model)
+    penalty() = sum([sum(model[i].weights .^ 2) + sum(model[i].bias .^ 2) for i in 1:length(model)]) * 0.000002f0
+    loss(x) = Flux.mse(model(x), x)# + penalty()
+    ps = Flux.params(model[begin:end-1], model[end].weights, model[end].bias)
+    # ps = Flux.params([m.positions for m in model])
     for _ in 1:epochs
         for (x, y) in dataloader
             i = i + 1
