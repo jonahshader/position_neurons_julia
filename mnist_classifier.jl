@@ -9,18 +9,7 @@ using CUDA
 using Plots
 
 include("dense_pos_layer.jl")
-
-function get_data(batch_size)
-    train_x, train_y = MNIST(split=:train)[:]
-    train_x_flat = reshape(train_x, 28^2, :)
-    DataLoader((train_x_flat, train_y), batchsize=batch_size, shuffle=true), train_x, train_y
-end
-
-function get_data_cuda(batch_size)
-    train_x, train_y = gpu(MNIST(split=:train)[:])
-    train_x_flat = reshape(train_x, 28^2, :)
-    DataLoader((train_x_flat, train_y), batchsize=batch_size, shuffle=true), train_x, train_y
-end
+include("mnist_helper.jl")
 
 function make_model()
     input_pos = zeros(Float32, 28^2, 2)
@@ -31,10 +20,17 @@ function make_model()
             input_pos[1 + x + y * 28, 2] = ((y/27f0) - 0.5f0) * 2f0 * range
         end
     end
-    l1 = DensePosLayer(input_pos, 28*4; activation = swish, std = [1f0, 1f0])
-    l2 = DensePosLayer(l1.positions, 30; activation = swish, std = [1f0, 1f0])
-    l3 = DensePosLayer(l2.positions, 28*4; activation = swish, std = [1f0, 1f0])
-    l4 = DensePosLayer(l3.positions, input_pos; activation = sigmoid_fast)
+
+    output_pos = zeros(Float32, 10, 2)
+    range = 3
+    for x in 0:9
+        output_pos[x+1, 1] = ((x/9) - 0.5f0) * 2f0 * range
+        output_pos[x+1, 2] = 0f0
+    end
+    l1 = DensePosLayer(input_pos, 28*4; activation = swish)
+    l2 = DensePosLayer(l1.positions, 28*2; activation = swish)
+    l3 = DensePosLayer(l2.positions, 30, activation = swish)
+    l4 = DensePosLayer(l3.positions, output_pos)
 
     Chain(l1, l2, l3, l4)
 end
@@ -54,7 +50,8 @@ end
 function train(model, dataloader; epochs=1, opt=Adam())
     i = 1
     penalty() = sum([sum(model[i].weights .^ 2) + sum(model[i].bias .^ 2) for i in 1:length(model)]) * 0.000002f0
-    loss(x) = Flux.mse(model(x), x) + penalty()
+    # loss(x) = Flux.mse(model(x), x) + penalty()
+    loss(x, y) = Flux.logitcrossentropy(model(x), y) + penalty()
     ps = Flux.params(model[begin:end-1], model[end].weights, model[end].bias)
     # ps = Flux.params([m.positions for m in model])
     for _ in 1:epochs
@@ -62,14 +59,14 @@ function train(model, dataloader; epochs=1, opt=Adam())
             i = i + 1
             # try
                 if i % 20 == 0
-                    println(loss(x))
+                    println(loss(x, y))
                     pos_cpu = [model[1].positions, model[2].positions, model[3].positions, model[4].positions] |> cpu
                     scatter(pos_cpu[1][:, 1], pos_cpu[1][:, 2], markersize=2)
                     scatter!(pos_cpu[2][:, 1], pos_cpu[2][:, 2], markersize=2)
-                    scatter!(pos_cpu[3][:, 1], pos_cpu[3][:, 2], markersize=2) |> display
-                    # scatter!(pos_cpu[4][:, 1], pos_cpu[4][:, 2], markersize=2)
+                    scatter!(pos_cpu[3][:, 1], pos_cpu[3][:, 2], markersize=2)
+                    scatter!(pos_cpu[4][:, 1], pos_cpu[4][:, 2], markersize=2) |> display
                 end
-                grad = gradient(() -> loss(x), ps)
+                grad = gradient(() -> loss(x, y), ps)
                 update!(opt, ps, grad)
 
             # catch e
@@ -83,18 +80,6 @@ function train(model, dataloader; epochs=1, opt=Adam())
     return model
 end
 
-function view_output(model, input::Vector)
-    (reshape(model(input), 28, 28) .|> Gray)'
-end
-
-function view_output(model, input::Matrix)
-    (reshape(model(reshape(input, 28*28)), 28, 28) .|> Gray)'
-end
-
-function view_average_output(model, samples=1000)
-    sum([view_output(model, rand(28, 28)) for _ in 1:samples]) ./ samples
-end
-
-function view_sample(input::Matrix)
-    (reshape(input, 28, 28) .|> Gray)'
+function accuracy(m, test_x, test_y)
+    sum([reshape(test_x[:, :, i], 28^2) |> m |> argmax == (test_y[i]+1) for i in 1:length(test_y)]) / length(test_y)
 end
