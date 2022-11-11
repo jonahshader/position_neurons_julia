@@ -43,6 +43,10 @@ function (a::DensePosLayer)(x)
     return activation.((a.weights .* a.dist_fun.(mm_dist2(a.positions, a.previous_positions))) * x .+ a.bias)
 end
 
+function get_weighted_mean_distance2(a::DensePosLayer)
+    return sum(mm_dist2(a.positions, a.previous_positions) .* (a.weights .^2)) / (size(a.positions)[1] * size(a.previous_positions)[1])
+end
+
 function correct_scale(pos, previous_pos, dist_fun)
     sum(dist_fun.(mm_dist2(pos, previous_pos))) / (size(pos)[1] * size(previous_pos)[1])
 end
