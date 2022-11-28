@@ -57,7 +57,7 @@ function train(model, dataloader; epochs=1, opt=Adam())
     penalty() = sum([sum(model[i].weights .^ 2) + sum(model[i].bias .^ 2) for i in 1:length(model)]) * 0.00002f0
     dist_penalty() = sum([get_weighted_mean_distance2(model[i]) for i in 1:length(model)]) / (length(model) * 4)
     # loss(x) = Flux.mse(model(x), x) + penalty()
-    loss(x, y) = Flux.logitcrossentropy(model(x), y) + penalty() + dist_penalty()
+    loss(x, y) = Flux.logitcrossentropy(model(x), y) + dist_penalty()
     ps = Flux.params(model[begin:end-1], model[end].weights, model[end].bias)
     # ps = Flux.params([m.positions for m in model[begin:end-1]])
     for _ in 1:epochs

@@ -42,6 +42,10 @@ function (a::DensePosLayer)(x)
     activation = NNlib.fast_act(a.activation)
     return activation.((a.weights .* a.dist_fun.(mm_dist2(a.positions, a.previous_positions))) * x .+ a.bias)
 end
+# function (a::DensePosLayer)(x)
+#     activation = NNlib.fast_act(a.activation)
+#     return activation.((a.weights) * x .+ a.bias)
+# end
 
 function get_weighted_mean_distance2(a::DensePosLayer)
     return sum(mm_dist2(a.positions, a.previous_positions) .* (a.weights .^2)) / (size(a.positions)[1] * size(a.previous_positions)[1])
