@@ -46,19 +46,29 @@ function run(epochs=1; opt=Adam(), batch=128)
     train(model, dataloader, epochs=epochs, opt=opt), train_x, train_y
 end
 
-function run_cuda(epochs=1; opt=Adam(), batch=128)
-    dataloader, train_x, train_y = get_data_cuda(batch)
+function run_cuda(epochs=1; opt=Adam(), batch=128, p=1.0)
+    dataloader, train_x, train_y = get_data_cuda_partial(batch, p)
     model = make_model() |> gpu
     train(model, dataloader, epochs=epochs, opt=opt), train_x, train_y
 end
 
-function train(model, dataloader; epochs=1, opt=Adam())
+function train(model, dataloader; epochs=1, opt=Adam(), pos_regularization=true)
     i = 1
     penalty() = sum([sum(model[i].weights .^ 2) + sum(model[i].bias .^ 2) for i in 1:length(model)]) * 0.00002f0
     dist_penalty() = sum([get_weighted_mean_distance2(model[i]) for i in 1:length(model)]) / (length(model) * 4)
     # loss(x) = Flux.mse(model(x), x) + penalty()
-    loss(x, y) = Flux.logitcrossentropy(model(x), y) + dist_penalty()
-    ps = Flux.params(model[begin:end-1], model[end].weights, model[end].bias)
+    loss_with_pos_regularization(x, y) = Flux.logitcrossentropy(model(x), y) + dist_penalty()
+    regular_loss(x, y) = Flux.logitcrossentropy(model(x), y)
+    loss = regular_loss
+    if pos_regularization
+        loss = loss_with_pos_regularization
+    end
+    ps = 
+    if pos_regularization
+        Flux.params(model[begin:end-1], model[end].weights, model[end].bias)
+    else
+        Flux.params(model)
+    end
     # ps = Flux.params([m.positions for m in model[begin:end-1]])
     for _ in 1:epochs
         for (x, y) in dataloader
@@ -66,12 +76,14 @@ function train(model, dataloader; epochs=1, opt=Adam())
             # try
                 if i % 20 == 0
                     println(loss(x, y))
-                    pos_cpu = [model[i].positions for i in 1:length(model)] |> cpu
-                    scatter(pos_cpu[1][:, 1], pos_cpu[1][:, 2], markersize=2)
-                    for p in pos_cpu[begin+1:end-1]
-                        scatter!(p[:, 1], p[:, 2], markersize=2)
+                    if pos_regularization
+                        pos_cpu = [model[i].positions for i in 1:length(model)] |> cpu
+                        scatter(pos_cpu[1][:, 1], pos_cpu[1][:, 2], markersize=2)
+                        for p in pos_cpu[begin+1:end-1]
+                            scatter!(p[:, 1], p[:, 2], markersize=2)
+                        end
+                        scatter!(pos_cpu[end][:, 1], pos_cpu[end][:, 2], markersize=2) |> display
                     end
-                    scatter!(pos_cpu[end][:, 1], pos_cpu[end][:, 2], markersize=2) |> display
                 end
                 grad = gradient(() -> loss(x, y), ps)
                 update!(opt, ps, grad)
