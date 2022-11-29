@@ -43,9 +43,9 @@ end
 
 function train(model, dataloader; epochs=1, opt=Adam())
     i = 1
-    penalty() = sum([sum(model[i].weights .^ 2) + sum(model[i].bias .^ 2) for i in 1:length(model)]) * 0.000002f0
+    penalty() = sum([sum(model[i].weight .^ 2) + sum(model[i].bias .^ 2) for i in 1:length(model)]) * 0.000002f0
     loss(x) = Flux.mse(model(x), x) + penalty()
-    ps = Flux.params(model[begin:end-1], model[end].weights, model[end].bias)
+    ps = Flux.params(model[begin:end-1], model[end].weight, model[end].bias)
     # ps = Flux.params([m.positions for m in model])
     for _ in 1:epochs
         for (x, y) in dataloader
@@ -64,7 +64,7 @@ function train(model, dataloader; epochs=1, opt=Adam())
 
             # catch e
             #     if typeof(e) <: InterruptException
-            #         return weights, biases
+            #         return weight, biases
             #     end
             # end
     

@@ -46,15 +46,15 @@ function run(epochs=1; opt=Adam(), batch=128)
     train(model, dataloader, epochs=epochs, opt=opt), train_x, train_y
 end
 
-function run_cuda(epochs=1; opt=Adam(), batch=128, p=1.0)
+function run_cuda(epochs=1; opt=Adam(), batch=128, p=1.0, save_vis=false)
     dataloader, train_x, train_y = get_data_cuda_partial(batch, p)
     model = make_model() |> gpu
-    train(model, dataloader, epochs=epochs, opt=opt), train_x, train_y
+    train(model, dataloader, epochs=epochs, opt=opt, save_vis=save_vis), train_x, train_y
 end
 
-function train(model, dataloader; epochs=1, opt=Adam(), pos_regularization=true)
+function train(model, dataloader; epochs=1, opt=Adam(), pos_regularization=true, save_vis=false)
     i = 1
-    penalty() = sum([sum(model[i].weights .^ 2) + sum(model[i].bias .^ 2) for i in 1:length(model)]) * 0.00002f0
+    penalty() = sum([sum(model[i].weight .^ 2) + sum(model[i].bias .^ 2) for i in 1:length(model)]) * 0.00002f0
     dist_penalty() = sum([get_weighted_mean_distance2(model[i]) for i in 1:length(model)]) / (length(model) * 4)
     # loss(x) = Flux.mse(model(x), x) + penalty()
     loss_with_pos_regularization(x, y) = Flux.logitcrossentropy(model(x), y) + dist_penalty()
@@ -65,11 +65,13 @@ function train(model, dataloader; epochs=1, opt=Adam(), pos_regularization=true)
     end
     ps = 
     if pos_regularization
-        Flux.params(model[begin:end-1], model[end].weights, model[end].bias)
+        Flux.params(model[begin:end-1], model[end].weight, model[end].bias)
+        # Flux.params(model[begin+1:end-1], model[begin].weight, model[begin].bias, model[end].weight, model[end].bias)
     else
         Flux.params(model)
     end
     # ps = Flux.params([m.positions for m in model[begin:end-1]])
+    anim = Animation()
     for _ in 1:epochs
         for (x, y) in dataloader
             i = i + 1
@@ -77,12 +79,18 @@ function train(model, dataloader; epochs=1, opt=Adam(), pos_regularization=true)
                 if i % 20 == 0
                     println(loss(x, y))
                     if pos_regularization
-                        pos_cpu = [model[i].positions for i in 1:length(model)] |> cpu
-                        scatter(pos_cpu[1][:, 1], pos_cpu[1][:, 2], markersize=2)
+                        pos_cpu = vcat([model[begin].previous_positions], [model[i].positions for i in 1:length(model)]) |> cpu
+                        scatter(pos_cpu[1][:, 1], pos_cpu[1][:, 2], markersize=1, seriesalpha=0.25)
                         for p in pos_cpu[begin+1:end-1]
-                            scatter!(p[:, 1], p[:, 2], markersize=2)
+                            scatter!(p[:, 1], p[:, 2], markersize=3)
                         end
-                        scatter!(pos_cpu[end][:, 1], pos_cpu[end][:, 2], markersize=2) |> display
+                        scatter!(pos_cpu[end][:, 1], pos_cpu[end][:, 2], markersize=3) |> display
+                        if save_vis
+                            frame(anim)
+                        end
+
+
+                        
                     end
                 end
                 grad = gradient(() -> loss(x, y), ps)
@@ -90,11 +98,14 @@ function train(model, dataloader; epochs=1, opt=Adam(), pos_regularization=true)
 
             # catch e
             #     if typeof(e) <: InterruptException
-            #         return weights, biases
+            #         return weight, biases
             #     end
             # end
     
         end
+    end
+    if save_vis
+        gif(anim, "Animation.gif", fps=30)
     end
     return model
 end

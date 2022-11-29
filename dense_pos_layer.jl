@@ -4,7 +4,7 @@ include("funs.jl")
 struct DensePosLayer
     positions::AbstractMatrix
     previous_positions::AbstractMatrix
-    weights::AbstractMatrix
+    weight::AbstractMatrix
     bias::AbstractVector
     activation::Function
     dist_fun::Function
@@ -22,13 +22,13 @@ function DensePosLayer(prev_pos::AbstractMatrix, output_size::Int; pos_dims = 2,
 end
 
 function DensePosLayer(prev_pos::AbstractMatrix, pos::AbstractMatrix; activation = identity, dist_fun = bellcurve)
-    weights = Flux.glorot_uniform(size(pos)[1], size(prev_pos)[1])
-    weights ./= Float32(correct_scale(pos, prev_pos, dist_fun))
+    weight = Flux.glorot_uniform(size(pos)[1], size(prev_pos)[1])
+    weight ./= Float32(correct_scale(pos, prev_pos, dist_fun))
     bias = zeros(Float32, size(pos)[1])
     return DensePosLayer(
         pos,
         prev_pos,
-        weights,
+        weight,
         bias,
         activation,
         dist_fun
@@ -36,19 +36,19 @@ function DensePosLayer(prev_pos::AbstractMatrix, pos::AbstractMatrix; activation
 end
 
 Flux.@functor DensePosLayer
-Flux.trainable(a::DensePosLayer) = (a.positions, a.weights, a.bias)
+Flux.trainable(a::DensePosLayer) = (a.positions, a.weight, a.bias)
 
 function (a::DensePosLayer)(x)
     activation = NNlib.fast_act(a.activation)
-    return activation.((a.weights .* a.dist_fun.(mm_dist2(a.positions, a.previous_positions))) * x .+ a.bias)
+    return activation.((a.weight .* a.dist_fun.(mm_dist2(a.positions, a.previous_positions))) * x .+ a.bias)
 end
 # function (a::DensePosLayer)(x)
 #     activation = NNlib.fast_act(a.activation)
-#     return activation.((a.weights) * x .+ a.bias)
+#     return activation.((a.weight) * x .+ a.bias)
 # end
 
 function get_weighted_mean_distance2(a::DensePosLayer)
-    return sum(mm_dist2(a.positions, a.previous_positions) .* (a.weights .^2)) / (size(a.positions)[1] * size(a.previous_positions)[1])
+    return sum(mm_dist2(a.positions, a.previous_positions) .* (a.weight .^2)) / (size(a.positions)[1] * size(a.previous_positions)[1])
 end
 
 function correct_scale(pos, previous_pos, dist_fun)
